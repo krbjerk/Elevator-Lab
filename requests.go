@@ -112,10 +112,8 @@ func (e elevator) requestsShouldStop() bool {
 
 // request clear at current floor
 // Function implemented for CV_All
-func (e elevator) requestsClearAtCurrentFloor() elevator {
+func (e *elevator) requestsClearAtCurrentFloor() {
 	for btn := 0; btn < 3; btn++ {
 		e.requests[e.floor][btn] = 0
 	}
-
-	return e
 }
