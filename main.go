@@ -3,6 +3,7 @@ package main
 import (
 	"Driver-go/elevio"
 	"fmt"
+	"time"
 )
 
 func main() {
@@ -23,6 +24,9 @@ func main() {
 	go elevio.PollFloorSensor(drv_floors)
 	go elevio.PollObstructionSwitch(drv_obstr)
 	go elevio.PollStopButton(drv_stop)
+
+	// Create a ticker that triggers every 500ms to check the timer
+	timeoutTicker := time.NewTicker(500 * time.Millisecond)
 
 	for {
 		select {
@@ -50,6 +54,12 @@ func main() {
 				for b := elevio.ButtonType(0); b < 3; b++ {
 					elevio.SetButtonLamp(b, f, false)
 				}
+			}
+
+		case <-timeoutTicker.C:
+			if timer.TimedOut() {
+				fmt.Println("Timed out in main.")
+				doorTimeout()
 			}
 		}
 	}

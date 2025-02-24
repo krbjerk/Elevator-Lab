@@ -62,6 +62,8 @@ func ButtonPress(btnFloor int, btnType elevio.ButtonType) {
 		// Otherwise request will be approved and stored for later
 		if Elevator.floor == btnFloor {
 			// Start timer for door open
+			timer.Start(3)
+			fmt.Println("door timeout 1")
 
 		} else {
 			Elevator.requests[btnFloor][btnType] = 1
@@ -81,6 +83,7 @@ func ButtonPress(btnFloor int, btnType elevio.ButtonType) {
 		// Print out something about the elevator having a new state.
 
 	}
+	setAllLights(Elevator)
 	elevatorPrint(Elevator)
 }
 
@@ -108,7 +111,10 @@ func FloorArrival(newFloor int) {
 			//elevio.SetButtonLamp() TODO: Reset the button lamp on simulator
 			Elevator.requestsClearAtCurrentFloor()
 			// Start open door timer
+			fmt.Println("door timeout 2")
+			timer.Start(3)
 			// Set all lights
+			setAllLights(Elevator)
 			Elevator.behavior = EB_DoorOpen
 			Elevator.dirn = elevio.MD_Stop
 		}
@@ -121,7 +127,6 @@ func FloorArrival(newFloor int) {
 
 func doorTimeout() {
 	fmt.Println("Door timeout. Continue on.")
-	elevatorPrint(Elevator)
 	// Idle given implicitly
 
 	// check if there are requests
@@ -137,9 +142,14 @@ func doorTimeout() {
 		switch Elevator.behavior {
 		case EB_DoorOpen:
 			// Start timer open door
+			fmt.Println("door timeout 3")
+			timer.Start(3)
 			Elevator.requestsClearAtCurrentFloor()
 			// Set all lights
+			setAllLights(Elevator)
 		case EB_Moving:
+			elevio.SetMotorDirection(Elevator.dirn)
+			elevio.SetDoorOpenLamp(false)
 
 		case EB_Idle:
 			elevio.SetDoorOpenLamp(false)
@@ -150,6 +160,7 @@ func doorTimeout() {
 
 	}
 	// Print elevator state
+	elevatorPrint(Elevator)
 }
 
 func elevioDirnToString(dirn elevio.MotorDirection) string {
@@ -215,12 +226,13 @@ func elevatorPrint(es elevator) {
 func (e *elevator) actOnRequest() {
 	twin := e.requestDirection()
 	e.dirn = twin.dirn
-	e.behavior = twin.behavior // Print behavior because works wrong
+	e.behavior = twin.behavior
 	switch twin.behavior {
 	case EB_DoorOpen:
 		// Do something about the doorlight
 		// Start the door timer
 		e.requestsClearAtCurrentFloor()
+		setAllLights(Elevator)
 
 	case EB_Moving:
 		//
@@ -231,3 +243,28 @@ func (e *elevator) actOnRequest() {
 		elevio.SetDoorOpenLamp(false)
 	}
 }
+
+// We still do not activate the correct lighting.
+// setAllLights function to update button lights
+func setAllLights(es elevator) {
+	var BTNS = []elevio.ButtonType{elevio.BT_HallUp, elevio.BT_HallDown, elevio.BT_Cab}
+	for floor := 0; floor < 4; floor++ {
+		i := 0
+		for _, btn := range BTNS {
+			i++
+			elevio.SetButtonLamp(btn, floor, intToBool(es.requests[floor][btn]))
+		}
+	}
+}
+
+func intToBool(i int) bool {
+	return i != 0 // Returns true if i is nonzero, false if i is 0
+}
+
+// The elevator runs even tho the doors are open.
+
+// We should add some initialization. The elevator behaves weirdly when it isnt initilized.
+
+// Clean the code
+
+// Add the right print outs
