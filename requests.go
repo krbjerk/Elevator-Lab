@@ -44,36 +44,36 @@ func (e Elevator) RequestsHere() bool {
 }
 
 // Determine the next direction based on current requests
-func (e Elevator) determineDirection() Twin {
-	switch e.m_dirn {
+func (_e *Elevator) determineDirection() Twin {
+	switch _e.m_dirn {
 	case elevio.MD_Up:
-		if e.RequestsAbove() {
+		if _e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
-		} else if e.RequestsHere() {
+		} else if _e.RequestsHere() {
 			return Twin{elevio.MD_Down, EB_DoorOpen}
-		} else if e.RequestsBelow() {
+		} else if _e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
 		}
 
 	case elevio.MD_Down:
-		if e.RequestsBelow() {
+		if _e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
-		} else if e.RequestsHere() {
+		} else if _e.RequestsHere() {
 			return Twin{elevio.MD_Up, EB_DoorOpen}
-		} else if e.RequestsAbove() {
+		} else if _e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
 		}
 
 	case elevio.MD_Stop:
-		if e.RequestsHere() {
+		if _e.RequestsHere() {
 			return Twin{elevio.MD_Stop, EB_DoorOpen}
-		} else if e.RequestsAbove() {
+		} else if _e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
-		} else if e.RequestsBelow() {
+		} else if _e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
@@ -84,7 +84,7 @@ func (e Elevator) determineDirection() Twin {
 }
 
 // Determine if the elevator should stop at the current floor
-func (e Elevator) shouldStopAtCurrentFloor() bool {
+func (e *Elevator) shouldStopAtCurrentFloor() bool {
 	switch e.m_dirn {
 	case elevio.MD_Down:
 		return (e.m_requests[e.m_floor][B_HallDown] == 1) ||

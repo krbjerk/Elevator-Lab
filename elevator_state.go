@@ -22,6 +22,8 @@ const (
 
 type Direction int
 
+// TODO:
+// Not used in code for now. Make decision about it being removed or change from MD.
 const (
 	D_Down Direction = -1
 	D_Stop           = 0
@@ -40,98 +42,98 @@ const (
 var g_elevator Elevator
 
 // Initialize the elevator
-func initElevator() {
+func (_e *Elevator) initElevator() {
 	elevio.SetMotorDirection(elevio.MD_Down)
-	g_elevator.m_dirn = elevio.MD_Down
-	g_elevator.m_behavior = EB_Moving
+	_e.m_dirn = elevio.MD_Down
+	_e.m_behavior = EB_Moving
 }
 
 // Handle a button press
-func handleButtonPress(_btnFloor int, _btnType elevio.ButtonType) {
+func (_e *Elevator) handleButtonPress(_btnFloor int, _btnType elevio.ButtonType) {
 	fmt.Println("Button press")
 
-	switch g_elevator.m_behavior {
+	switch _e.m_behavior {
 	case EB_DoorOpen:
 		fmt.Println("Door is open.")
-		if g_elevator.m_floor == _btnFloor {
+		if _e.m_floor == _btnFloor {
 			g_timer.startTimer(3)
 			fmt.Println("door timeout 1")
 		} else {
-			g_elevator.m_requests[_btnFloor][_btnType] = 1
+			_e.m_requests[_btnFloor][_btnType] = 1
 			if checkTimerExpired(g_timer) {
-				g_elevator.processRequest()
+				_e.processRequest()
 				fmt.Println("Acted on request.")
 			}
 		}
 
 	case EB_Moving:
-		g_elevator.m_requests[_btnFloor][_btnType] = 1
+		_e.m_requests[_btnFloor][_btnType] = 1
 	case EB_Idle:
-		g_elevator.m_requests[_btnFloor][_btnType] = 1
+		_e.m_requests[_btnFloor][_btnType] = 1
 		if checkTimerExpired(g_timer) {
-			g_elevator.processRequest()
+			_e.processRequest()
 			fmt.Println("Acted on request.")
 		}
 	}
-	updateLights(g_elevator)
-	printElevatorState(g_elevator)
+	_e.updateLights()
+	_e.printElevatorState()
 }
 
 // Handle elevator arriving at a floor
-func handleFloorArrival(_newFloor int) {
+func (_e *Elevator) handleFloorArrival(_newFloor int) {
 	fmt.Println("Arrived at floor:", _newFloor)
-	g_elevator.m_floor = _newFloor
-	elevio.SetFloorIndicator(g_elevator.m_floor)
+	_e.m_floor = _newFloor
+	elevio.SetFloorIndicator(_e.m_floor)
 
-	if g_elevator.m_behavior == EB_Moving && g_elevator.shouldStopAtCurrentFloor() {
+	if _e.m_behavior == EB_Moving && _e.shouldStopAtCurrentFloor() {
 		fmt.Println("Stopping elevator at floor:", _newFloor)
 		elevio.SetMotorDirection(elevio.MD_Stop)
 		elevio.SetDoorOpenLamp(true)
-		g_elevator.clearRequestsAtCurrentFloor()
+		_e.clearRequestsAtCurrentFloor()
 		g_timer.startTimer(3)
-		updateLights(g_elevator)
-		g_elevator.m_behavior = EB_DoorOpen
-		g_elevator.m_dirn = elevio.MD_Stop
+		_e.updateLights()
+		_e.m_behavior = EB_DoorOpen
+		_e.m_dirn = elevio.MD_Stop
 	}
-	printElevatorState(g_elevator)
+	_e.printElevatorState()
 }
 
 // Handle door timeout event
-func handleDoorTimeout() {
+func (_e *Elevator) handleDoorTimeout() {
 	fmt.Println("Door timeout, checking requests.")
 
-	if g_elevator.m_behavior == EB_DoorOpen {
-		twin := g_elevator.determineDirection()
-		g_elevator.m_dirn = twin.m_dirn
-		g_elevator.m_behavior = twin.m_behavior
+	if _e.m_behavior == EB_DoorOpen {
+		twin := _e.determineDirection()
+		_e.m_dirn = twin.m_dirn
+		_e.m_behavior = twin.m_behavior
 
-		switch g_elevator.m_behavior {
+		switch _e.m_behavior {
 		case EB_DoorOpen:
 			g_timer.startTimer(3)
-			g_elevator.clearRequestsAtCurrentFloor()
-			updateLights(g_elevator)
+			_e.clearRequestsAtCurrentFloor()
+			_e.updateLights()
 		case EB_Moving:
-			elevio.SetMotorDirection(g_elevator.m_dirn)
+			elevio.SetMotorDirection(_e.m_dirn)
 			elevio.SetDoorOpenLamp(false)
 		case EB_Idle:
 			elevio.SetDoorOpenLamp(false)
 		}
 	}
-	printElevatorState(g_elevator)
+	_e.printElevatorState()
 }
 
 // Process elevator request
-func (e *Elevator) processRequest() {
-	twin := e.determineDirection()
-	e.m_dirn = twin.m_dirn
-	e.m_behavior = twin.m_behavior
+func (_e *Elevator) processRequest() {
+	twin := _e.determineDirection()
+	_e.m_dirn = twin.m_dirn
+	_e.m_behavior = twin.m_behavior
 
 	switch twin.m_behavior {
 	case EB_DoorOpen:
-		e.clearRequestsAtCurrentFloor()
-		updateLights(g_elevator)
+		_e.clearRequestsAtCurrentFloor()
+		_e.updateLights()
 	case EB_Moving:
-		elevio.SetMotorDirection(e.m_dirn)
+		elevio.SetMotorDirection(_e.m_dirn)
 		elevio.SetDoorOpenLamp(false)
 	case EB_Idle:
 		elevio.SetDoorOpenLamp(false)
@@ -139,7 +141,7 @@ func (e *Elevator) processRequest() {
 }
 
 // Update elevator lights
-func updateLights(_e Elevator) {
+func (_e Elevator) updateLights() {
 	var BTNS = []elevio.ButtonType{elevio.BT_HallUp, elevio.BT_HallDown, elevio.BT_Cab}
 	for _floor := 0; _floor < 4; _floor++ {
 		for _, _btn := range BTNS {
@@ -182,7 +184,7 @@ func behaviorToString(_behavior ElevatorBehavior) string {
 }
 
 // Print elevator state
-func printElevatorState(_e Elevator) {
+func (_e *Elevator) printElevatorState() {
 	fmt.Println("  +--------------------+")
 	fmt.Printf(
 		"  | Floor = %-2d         |\n"+

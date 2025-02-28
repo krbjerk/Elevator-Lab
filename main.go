@@ -14,7 +14,7 @@ func main() {
 
 	if elevio.GetFloor() == -1 {
 		// Make the elevator move to an actual floor on startup. Necessary for the state machine.
-		initElevator()
+		g_elevator.initElevator()
 	}
 
 	drv_buttons := make(chan elevio.ButtonEvent)
@@ -36,13 +36,14 @@ func main() {
 			fmt.Printf("%+v\n", a)
 			elevio.SetButtonLamp(a.Button, a.Floor, true)
 
-			handleButtonPress(a.Floor, a.Button)
+			g_elevator.handleButtonPress(a.Floor, a.Button)
 
 		case a := <-drv_floors:
 			fmt.Printf("%+v\n", a)
-			handleFloorArrival(a)
+			g_elevator.handleFloorArrival(a)
 
 		case a := <-drv_obstr:
+			// TODO
 			fmt.Printf("%+v\n", a)
 			if a {
 				elevio.SetMotorDirection(elevio.MD_Stop)
@@ -51,6 +52,7 @@ func main() {
 			}
 
 		case a := <-drv_stop:
+			// TODO
 			fmt.Printf("%+v\n", a)
 			for f := 0; f < numFloors; f++ {
 				for b := elevio.ButtonType(0); b < 3; b++ {
@@ -61,7 +63,7 @@ func main() {
 		case <-timeoutTicker.C:
 			if g_timer.timedOut() {
 				fmt.Println("Timed out in main.")
-				handleDoorTimeout()
+				g_elevator.handleDoorTimeout()
 			}
 		}
 	}
