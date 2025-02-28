@@ -1,22 +1,19 @@
 package main
 
-//
-
 import (
 	"Driver-go/elevio"
 )
 
 type Twin struct {
-	dirn     elevio.MotorDirection
-	behavior ElevatorBehavior
+	m_dirn     elevio.MotorDirection
+	m_behavior ElevatorBehavior
 }
 
-// Functions for simplification
-
-func (e elevator) requestAbove() bool {
-	for i := e.floor + 1; i < 4; i++ {
-		for j := 0; j < 3; j++ {
-			if e.requests[i][j] == 1 {
+// Check if there are requests above the current floor
+func (e Elevator) RequestsAbove() bool {
+	for _floor := e.m_floor + 1; _floor < 4; _floor++ {
+		for _btn := 0; _btn < 3; _btn++ {
+			if e.m_requests[_floor][_btn] == 1 {
 				return true
 			}
 		}
@@ -24,80 +21,80 @@ func (e elevator) requestAbove() bool {
 	return false
 }
 
-func (e elevator) requestBelow() bool {
-	for i := 0; i < e.floor; i++ {
-		for j := 0; j < 3; j++ {
-			if e.requests[i][j] == 1 {
+// Check if there are requests below the current floor
+func (e Elevator) RequestsBelow() bool {
+	for _floor := 0; _floor < e.m_floor; _floor++ {
+		for _btn := 0; _btn < 3; _btn++ {
+			if e.m_requests[_floor][_btn] == 1 {
 				return true
 			}
 		}
 	}
 	return false
-
 }
 
-func (e elevator) requestHere() bool {
-	for i := 0; i < 3; i++ {
-		if e.requests[e.floor][i] == 1 {
+// Check if there is a request at the current floor
+func (e Elevator) RequestsHere() bool {
+	for _btn := 0; _btn < 3; _btn++ {
+		if e.m_requests[e.m_floor][_btn] == 1 {
 			return true
 		}
 	}
 	return false
 }
 
-// request choose direction
-
-func (e elevator) requestDirection() Twin {
-	switch e.dirn {
+// Determine the next direction based on current requests
+func (e Elevator) determineDirection() Twin {
+	switch e.m_dirn {
 	case elevio.MD_Up:
-		if e.requestAbove() {
+		if e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
-		} else if e.requestHere() {
+		} else if e.RequestsHere() {
 			return Twin{elevio.MD_Down, EB_DoorOpen}
-		} else if e.requestBelow() {
+		} else if e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
 		}
 
 	case elevio.MD_Down:
-		if e.requestBelow() {
+		if e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
-		} else if e.requestHere() {
+		} else if e.RequestsHere() {
 			return Twin{elevio.MD_Up, EB_DoorOpen}
-		} else if e.requestAbove() {
+		} else if e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
 		}
 
 	case elevio.MD_Stop:
-		if e.requestHere() {
+		if e.RequestsHere() {
 			return Twin{elevio.MD_Stop, EB_DoorOpen}
-		} else if e.requestAbove() {
+		} else if e.RequestsAbove() {
 			return Twin{elevio.MD_Up, EB_Moving}
-		} else if e.requestBelow() {
+		} else if e.RequestsBelow() {
 			return Twin{elevio.MD_Down, EB_Moving}
 		} else {
 			return Twin{elevio.MD_Stop, EB_Idle}
 		}
 	default:
-		return Twin{elevio.MD_Stop, EB_Idle} // Must include default to not get no return error.
+		return Twin{elevio.MD_Stop, EB_Idle} // Must include default to avoid missing return error
 	}
 }
 
-// request should stop
-func (e elevator) requestsShouldStop() bool {
-	switch e.dirn {
+// Determine if the elevator should stop at the current floor
+func (e Elevator) shouldStopAtCurrentFloor() bool {
+	switch e.m_dirn {
 	case elevio.MD_Down:
-		return (e.requests[e.floor][B_HallDown] == 1) ||
-			(e.requests[e.floor][B_Cab] == 1) ||
-			!e.requestBelow()
+		return (e.m_requests[e.m_floor][B_HallDown] == 1) ||
+			(e.m_requests[e.m_floor][B_Cab] == 1) ||
+			!e.RequestsBelow()
 
 	case elevio.MD_Up:
-		return (e.requests[e.floor][B_HallUp] == 1) ||
-			(e.requests[e.floor][B_Cab] == 1) ||
-			!e.requestAbove()
+		return (e.m_requests[e.m_floor][B_HallUp] == 1) ||
+			(e.m_requests[e.m_floor][B_Cab] == 1) ||
+			!e.RequestsAbove()
 
 	case elevio.MD_Stop:
 		fallthrough
@@ -106,14 +103,9 @@ func (e elevator) requestsShouldStop() bool {
 	}
 }
 
-// request should clear immediately
-
-// Already implemented in the function buttonPress().
-
-// request clear at current floor
-// Function implemented for CV_All
-func (e *elevator) requestsClearAtCurrentFloor() {
-	for btn := 0; btn < 3; btn++ {
-		e.requests[e.floor][btn] = 0
+// Clear requests at the current floor
+func (e *Elevator) clearRequestsAtCurrentFloor() {
+	for _btn := 0; _btn < 3; _btn++ {
+		e.m_requests[e.m_floor][_btn] = 0
 	}
 }

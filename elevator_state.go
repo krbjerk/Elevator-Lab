@@ -5,11 +5,11 @@ import (
 	"fmt"
 )
 
-type elevator struct {
-	floor    int
-	dirn     elevio.MotorDirection
-	requests [4][3]int
-	behavior ElevatorBehavior
+type Elevator struct {
+	m_floor    int
+	m_dirn     elevio.MotorDirection
+	m_requests [4][3]int
+	m_behavior ElevatorBehavior
 }
 
 type ElevatorBehavior int
@@ -20,7 +20,6 @@ const (
 	EB_Moving                    = 2
 )
 
-// Created a button type for use in statemachine to decide further action.
 type Direction int
 
 const (
@@ -37,134 +36,126 @@ const (
 	B_Cab             = 2
 )
 
-// Create elevator object
-var Elevator elevator
+// Global elevator instance
+var g_elevator Elevator
 
-// Create state machine functions:
-// Needs to react on button press and floor
-
-func elevatorInit() {
-	// TODO: Make sure this is really necessary.
+// Initialize the elevator
+func initElevator() {
 	elevio.SetMotorDirection(elevio.MD_Down)
-	Elevator.dirn = elevio.MD_Down
-	Elevator.behavior = EB_Moving
-
+	g_elevator.m_dirn = elevio.MD_Down
+	g_elevator.m_behavior = EB_Moving
 }
 
-func ButtonPress(btnFloor int, btnType elevio.ButtonType) {
+// Handle a button press
+func handleButtonPress(_btnFloor int, _btnType elevio.ButtonType) {
 	fmt.Println("Button press")
-	// Requests can happen at any point.
 
-	switch Elevator.behavior {
+	switch g_elevator.m_behavior {
 	case EB_DoorOpen:
 		fmt.Println("Door is open.")
-		// Clear if request is for same floor
-		// Otherwise request will be approved and stored for later
-		if Elevator.floor == btnFloor {
-			// Start timer for door open
-			timer.Start(3)
+		if g_elevator.m_floor == _btnFloor {
+			g_timer.startTimer(3)
 			fmt.Println("door timeout 1")
-
 		} else {
-			Elevator.requests[btnFloor][btnType] = 1
-			Elevator.actOnRequest()
-
+			g_elevator.m_requests[_btnFloor][_btnType] = 1
+			if checkTimerExpired(g_timer) {
+				g_elevator.processRequest()
+				fmt.Println("Acted on request.")
+			}
 		}
 
 	case EB_Moving:
-		// Take request and store it for later
-		Elevator.requests[btnFloor][btnType] = 1
+		g_elevator.m_requests[_btnFloor][_btnType] = 1
 	case EB_Idle:
-		// Take request and act on it immediately
-		Elevator.requests[btnFloor][btnType] = 1
-		Elevator.actOnRequest()
-		fmt.Println("Acted on request.")
-		// SetAlllights(Elevator)
-		// Print out something about the elevator having a new state.
-
-	}
-	setAllLights(Elevator)
-	elevatorPrint(Elevator)
-}
-
-func FloorArrival(newFloor int) {
-
-	fmt.Println("Arrived at new floor.")
-	// Moving given implicitly
-
-	// Check if the current request needs to stop at this floor
-	//	Stop the cab
-	//	Do something with the lights
-	//	Clear request
-	//	Open door and start timer
-
-	// Print out that the elevator has arrived at a new floor
-	Elevator.floor = newFloor
-	elevio.SetFloorIndicator(Elevator.floor)
-
-	switch Elevator.behavior {
-	case EB_Moving:
-		if Elevator.requestsShouldStop() {
-			fmt.Println("The elevator should stop here.")
-			elevio.SetMotorDirection(elevio.MD_Stop)
-			elevio.SetDoorOpenLamp(true)
-			//elevio.SetButtonLamp() TODO: Reset the button lamp on simulator
-			Elevator.requestsClearAtCurrentFloor()
-			// Start open door timer
-			fmt.Println("door timeout 2")
-			timer.Start(3)
-			// Set all lights
-			setAllLights(Elevator)
-			Elevator.behavior = EB_DoorOpen
-			Elevator.dirn = elevio.MD_Stop
+		g_elevator.m_requests[_btnFloor][_btnType] = 1
+		if checkTimerExpired(g_timer) {
+			g_elevator.processRequest()
+			fmt.Println("Acted on request.")
 		}
-	default:
-
 	}
-	// Print the new state of elevator.
-	elevatorPrint(Elevator)
+	updateLights(g_elevator)
+	printElevatorState(g_elevator)
 }
 
-func doorTimeout() {
-	fmt.Println("Door timeout. Continue on.")
-	// Idle given implicitly
+// Handle elevator arriving at a floor
+func handleFloorArrival(_newFloor int) {
+	fmt.Println("Arrived at floor:", _newFloor)
+	g_elevator.m_floor = _newFloor
+	elevio.SetFloorIndicator(g_elevator.m_floor)
 
-	// check if there are requests
-	// Act on them
+	if g_elevator.m_behavior == EB_Moving && g_elevator.shouldStopAtCurrentFloor() {
+		fmt.Println("Stopping elevator at floor:", _newFloor)
+		elevio.SetMotorDirection(elevio.MD_Stop)
+		elevio.SetDoorOpenLamp(true)
+		g_elevator.clearRequestsAtCurrentFloor()
+		g_timer.startTimer(3)
+		updateLights(g_elevator)
+		g_elevator.m_behavior = EB_DoorOpen
+		g_elevator.m_dirn = elevio.MD_Stop
+	}
+	printElevatorState(g_elevator)
+}
 
-	// Elevator printout
-	switch Elevator.behavior {
-	case EB_DoorOpen:
-		twin := Elevator.requestDirection()
-		Elevator.dirn = twin.dirn
-		Elevator.behavior = twin.behavior
+// Handle door timeout event
+func handleDoorTimeout() {
+	fmt.Println("Door timeout, checking requests.")
 
-		switch Elevator.behavior {
+	if g_elevator.m_behavior == EB_DoorOpen {
+		twin := g_elevator.determineDirection()
+		g_elevator.m_dirn = twin.m_dirn
+		g_elevator.m_behavior = twin.m_behavior
+
+		switch g_elevator.m_behavior {
 		case EB_DoorOpen:
-			// Start timer open door
-			fmt.Println("door timeout 3")
-			timer.Start(3)
-			Elevator.requestsClearAtCurrentFloor()
-			// Set all lights
-			setAllLights(Elevator)
+			g_timer.startTimer(3)
+			g_elevator.clearRequestsAtCurrentFloor()
+			updateLights(g_elevator)
 		case EB_Moving:
-			elevio.SetMotorDirection(Elevator.dirn)
+			elevio.SetMotorDirection(g_elevator.m_dirn)
 			elevio.SetDoorOpenLamp(false)
-
 		case EB_Idle:
 			elevio.SetDoorOpenLamp(false)
-			elevio.SetMotorDirection(Elevator.dirn)
 		}
-
-	default:
-
 	}
-	// Print elevator state
-	elevatorPrint(Elevator)
+	printElevatorState(g_elevator)
 }
 
-func elevioDirnToString(dirn elevio.MotorDirection) string {
-	switch dirn {
+// Process elevator request
+func (e *Elevator) processRequest() {
+	twin := e.determineDirection()
+	e.m_dirn = twin.m_dirn
+	e.m_behavior = twin.m_behavior
+
+	switch twin.m_behavior {
+	case EB_DoorOpen:
+		e.clearRequestsAtCurrentFloor()
+		updateLights(g_elevator)
+	case EB_Moving:
+		elevio.SetMotorDirection(e.m_dirn)
+		elevio.SetDoorOpenLamp(false)
+	case EB_Idle:
+		elevio.SetDoorOpenLamp(false)
+	}
+}
+
+// Update elevator lights
+func updateLights(_e Elevator) {
+	var BTNS = []elevio.ButtonType{elevio.BT_HallUp, elevio.BT_HallDown, elevio.BT_Cab}
+	for _floor := 0; _floor < 4; _floor++ {
+		for _, _btn := range BTNS {
+			elevio.SetButtonLamp(_btn, _floor, convertIntToBool(_e.m_requests[_floor][_btn]))
+		}
+	}
+}
+
+// Convert integer to boolean
+func convertIntToBool(_i int) bool {
+	return _i != 0
+}
+
+// Convert direction to string
+func directionToString(_dirn elevio.MotorDirection) string {
+	switch _dirn {
 	case 1:
 		return "Up"
 	case -1:
@@ -176,45 +167,44 @@ func elevioDirnToString(dirn elevio.MotorDirection) string {
 	}
 }
 
-func ebToString(behaviour ElevatorBehavior) string {
-	switch behaviour {
-	case 0:
+// Convert behavior to string
+func behaviorToString(_behavior ElevatorBehavior) string {
+	switch _behavior {
+	case EB_Idle:
 		return "Idle"
-	case 1:
+	case EB_DoorOpen:
 		return "DoorOpen"
-	case 2:
+	case EB_Moving:
 		return "Moving"
 	default:
 		return "Unknown"
 	}
 }
 
-// Elevator print function (Converted from C)
-func elevatorPrint(es elevator) {
+// Print elevator state
+func printElevatorState(_e Elevator) {
 	fmt.Println("  +--------------------+")
 	fmt.Printf(
-		"  |floor = %-2d          |\n"+
-			"  |dirn  = %-12.12s|\n"+
-			"  |behav = %-12.12s|\n",
-		es.floor,
-		elevioDirnToString(es.dirn),
-		ebToString(es.behavior),
+		"  | Floor = %-2d         |\n"+
+			"  | Dirn  = %-10s |\n"+
+			"  | Behav = %-10s |\n",
+		_e.m_floor,
+		directionToString(_e.m_dirn),
+		behaviorToString(_e.m_behavior),
 	)
 	fmt.Println("  +--------------------+")
 	fmt.Println("  |  | up  | dn  | cab |")
 
-	// Print button requests
-	for f := 4 - 1; f >= 0; f-- {
-		fmt.Printf("  | %d", f)
-		for btn := 0; btn < 3; btn++ {
-			// Skip invalid buttons
-			if (f == 4-1 && btn == int(B_HallUp)) || (f == 0 && btn == B_HallDown) {
+	for _floor := 4 - 1; _floor >= 0; _floor-- {
+		fmt.Printf("  | %d", _floor)
+		for _btn := 0; _btn < 3; _btn++ {
+			if (_floor == 4-1 && _btn == int(B_HallUp)) || (_floor == 0 && _btn == B_HallDown) {
 				fmt.Print("|     ")
 			} else {
-				if es.requests[f][btn] == 1 {
-					fmt.Print("|  #  ") // Requested
+				if _e.m_requests[_floor][_btn] == 1 {
+					fmt.Print("|  #  ")
 				} else {
-					fmt.Print("|  -  ") // Not requested
+					fmt.Print("|  -  ")
 				}
 			}
 		}
@@ -222,49 +212,3 @@ func elevatorPrint(es elevator) {
 	}
 	fmt.Println("  +--------------------+")
 }
-
-func (e *elevator) actOnRequest() {
-	twin := e.requestDirection()
-	e.dirn = twin.dirn
-	e.behavior = twin.behavior
-	switch twin.behavior {
-	case EB_DoorOpen:
-		// Do something about the doorlight
-		// Start the door timer
-		e.requestsClearAtCurrentFloor()
-		setAllLights(Elevator)
-
-	case EB_Moving:
-		//
-		elevio.SetMotorDirection(e.dirn)
-		elevio.SetDoorOpenLamp(false)
-
-	case EB_Idle:
-		elevio.SetDoorOpenLamp(false)
-	}
-}
-
-// We still do not activate the correct lighting.
-// setAllLights function to update button lights
-func setAllLights(es elevator) {
-	var BTNS = []elevio.ButtonType{elevio.BT_HallUp, elevio.BT_HallDown, elevio.BT_Cab}
-	for floor := 0; floor < 4; floor++ {
-		i := 0
-		for _, btn := range BTNS {
-			i++
-			elevio.SetButtonLamp(btn, floor, intToBool(es.requests[floor][btn]))
-		}
-	}
-}
-
-func intToBool(i int) bool {
-	return i != 0 // Returns true if i is nonzero, false if i is 0
-}
-
-// The elevator runs even tho the doors are open.
-
-// We should add some initialization. The elevator behaves weirdly when it isnt initilized.
-
-// Clean the code
-
-// Add the right print outs
