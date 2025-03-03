@@ -104,8 +104,45 @@ func (e *Elevator) shouldStopAtCurrentFloor() bool {
 }
 
 // Clear requests at the current floor
-func (e *Elevator) clearRequestsAtCurrentFloor() {
-	for _btn := 0; _btn < 3; _btn++ {
-		e.m_requests[e.m_floor][_btn] = false
+func (_e *Elevator) clearRequestsAtCurrentFloor() {
+	switch _e.config.clearRequestVariant {
+	case CV_All:
+		// Clear all types of requests at the floor
+		for btn := 0; btn < 3; btn++ {
+			_e.m_requests[_e.m_floor][btn] = false
+			//elevio.SetButtonLamp(elevio.ButtonType(btn), e.floor, false)
+		}
+
+	case CV_InDirn:
+		// Clear requests in the direction of movement
+		_e.m_requests[_e.m_floor][elevio.BT_Cab] = false
+		//elevio.SetButtonLamp(elevio.BT_Cab, e.floor, false)
+
+		switch _e.m_dirn {
+		case elevio.MD_Up:
+			_e.m_requests[_e.m_floor][elevio.BT_HallUp] = false
+			//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			// If no more requests above, clear down request at this floor
+			if !_e.RequestsAbove() && !_e.m_requests[_e.m_floor][elevio.BT_HallUp] {
+				_e.m_requests[_e.m_floor][elevio.BT_HallDown] = false
+				//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+			}
+
+		case elevio.MD_Down:
+			_e.m_requests[_e.m_floor][elevio.BT_HallDown] = false
+			//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+			// If no more requests below, clear up request at this floor
+			if !_e.RequestsBelow() && !_e.m_requests[_e.m_floor][elevio.BT_HallDown] {
+				_e.m_requests[_e.m_floor][elevio.BT_HallUp] = false
+				//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			}
+
+		default:
+			// If stopped, clear both up and down hall requests
+			_e.m_requests[_e.m_floor][elevio.BT_HallUp] = false
+			_e.m_requests[_e.m_floor][elevio.BT_HallDown] = false
+			//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+		}
 	}
 }
