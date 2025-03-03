@@ -13,7 +13,7 @@ type Twin struct {
 func (e Elevator) RequestsAbove() bool {
 	for _floor := e.m_floor + 1; _floor < 4; _floor++ {
 		for _btn := 0; _btn < 3; _btn++ {
-			if e.m_requests[_floor][_btn] == 1 {
+			if e.m_requests[_floor][_btn] {
 				return true
 			}
 		}
@@ -25,7 +25,7 @@ func (e Elevator) RequestsAbove() bool {
 func (e Elevator) RequestsBelow() bool {
 	for _floor := 0; _floor < e.m_floor; _floor++ {
 		for _btn := 0; _btn < 3; _btn++ {
-			if e.m_requests[_floor][_btn] == 1 {
+			if e.m_requests[_floor][_btn] {
 				return true
 			}
 		}
@@ -36,7 +36,7 @@ func (e Elevator) RequestsBelow() bool {
 // Check if there is a request at the current floor
 func (e Elevator) RequestsHere() bool {
 	for _btn := 0; _btn < 3; _btn++ {
-		if e.m_requests[e.m_floor][_btn] == 1 {
+		if e.m_requests[e.m_floor][_btn] {
 			return true
 		}
 	}
@@ -87,13 +87,13 @@ func (_e *Elevator) determineDirection() Twin {
 func (e *Elevator) shouldStopAtCurrentFloor() bool {
 	switch e.m_dirn {
 	case elevio.MD_Down:
-		return (e.m_requests[e.m_floor][B_HallDown] == 1) ||
-			(e.m_requests[e.m_floor][B_Cab] == 1) ||
+		return e.m_requests[e.m_floor][B_HallDown] ||
+			e.m_requests[e.m_floor][B_Cab] ||
 			!e.RequestsBelow()
 
 	case elevio.MD_Up:
-		return (e.m_requests[e.m_floor][B_HallUp] == 1) ||
-			(e.m_requests[e.m_floor][B_Cab] == 1) ||
+		return e.m_requests[e.m_floor][B_HallUp] ||
+			e.m_requests[e.m_floor][B_Cab] ||
 			!e.RequestsAbove()
 
 	case elevio.MD_Stop:
@@ -106,6 +106,6 @@ func (e *Elevator) shouldStopAtCurrentFloor() bool {
 // Clear requests at the current floor
 func (e *Elevator) clearRequestsAtCurrentFloor() {
 	for _btn := 0; _btn < 3; _btn++ {
-		e.m_requests[e.m_floor][_btn] = 0
+		e.m_requests[e.m_floor][_btn] = false
 	}
 }

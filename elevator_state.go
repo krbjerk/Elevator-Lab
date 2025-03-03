@@ -5,11 +5,23 @@ import (
 	"fmt"
 )
 
+const DOOR_OPEN_DURATION = 3.0
+const NUM_FLOORS = 4
+
+const (
+	CV_All    = 0 // Clear all requests at the current floor
+	CV_InDirn = 1 // Clear requests in the current direction
+)
+
 type Elevator struct {
 	m_floor    int
 	m_dirn     elevio.MotorDirection
-	m_requests [4][3]int
-	m_behavior ElevatorBehavior
+	m_requests [NUM_FLOORS][3]bool
+	config     struct {
+		clearRequestVariant int
+	}
+	m_behavior    ElevatorBehavior
+	m_obstruction bool
 }
 
 type ElevatorBehavior int
@@ -46,6 +58,8 @@ func (_e *Elevator) initElevator() {
 	elevio.SetMotorDirection(elevio.MD_Down)
 	_e.m_dirn = elevio.MD_Down
 	_e.m_behavior = EB_Moving
+	_e.m_obstruction = false
+	_e.config.clearRequestVariant = CV_InDirn
 }
 
 // Handle a button press
@@ -56,10 +70,10 @@ func (_e *Elevator) handleButtonPress(_btnFloor int, _btnType elevio.ButtonType)
 	case EB_DoorOpen:
 		fmt.Println("Door is open.")
 		if _e.m_floor == _btnFloor {
-			g_timer.startTimer(3)
+			g_timer.startTimer(DOOR_OPEN_DURATION)
 			fmt.Println("door timeout 1")
 		} else {
-			_e.m_requests[_btnFloor][_btnType] = 1
+			_e.m_requests[_btnFloor][_btnType] = true
 			if checkTimerExpired(g_timer) {
 				_e.processRequest()
 				fmt.Println("Acted on request.")
@@ -67,9 +81,9 @@ func (_e *Elevator) handleButtonPress(_btnFloor int, _btnType elevio.ButtonType)
 		}
 
 	case EB_Moving:
-		_e.m_requests[_btnFloor][_btnType] = 1
+		_e.m_requests[_btnFloor][_btnType] = true
 	case EB_Idle:
-		_e.m_requests[_btnFloor][_btnType] = 1
+		_e.m_requests[_btnFloor][_btnType] = true
 		if checkTimerExpired(g_timer) {
 			_e.processRequest()
 			fmt.Println("Acted on request.")
@@ -90,7 +104,7 @@ func (_e *Elevator) handleFloorArrival(_newFloor int) {
 		elevio.SetMotorDirection(elevio.MD_Stop)
 		elevio.SetDoorOpenLamp(true)
 		_e.clearRequestsAtCurrentFloor()
-		g_timer.startTimer(3)
+		g_timer.startTimer(DOOR_OPEN_DURATION)
 		_e.updateLights()
 		_e.m_behavior = EB_DoorOpen
 		_e.m_dirn = elevio.MD_Stop
@@ -101,15 +115,16 @@ func (_e *Elevator) handleFloorArrival(_newFloor int) {
 // Handle door timeout event
 func (_e *Elevator) handleDoorTimeout() {
 	fmt.Println("Door timeout, checking requests.")
-
-	if _e.m_behavior == EB_DoorOpen {
+	if _e.m_obstruction {
+		g_timer.startTimer(DOOR_OPEN_DURATION)
+	} else if _e.m_behavior == EB_DoorOpen {
 		twin := _e.determineDirection()
 		_e.m_dirn = twin.m_dirn
 		_e.m_behavior = twin.m_behavior
 
 		switch _e.m_behavior {
 		case EB_DoorOpen:
-			g_timer.startTimer(3)
+			g_timer.startTimer(DOOR_OPEN_DURATION)
 			_e.clearRequestsAtCurrentFloor()
 			_e.updateLights()
 		case EB_Moving:
@@ -143,9 +158,9 @@ func (_e *Elevator) processRequest() {
 // Update elevator lights
 func (_e Elevator) updateLights() {
 	var BTNS = []elevio.ButtonType{elevio.BT_HallUp, elevio.BT_HallDown, elevio.BT_Cab}
-	for _floor := 0; _floor < 4; _floor++ {
+	for _floor := 0; _floor < NUM_FLOORS; _floor++ {
 		for _, _btn := range BTNS {
-			elevio.SetButtonLamp(_btn, _floor, convertIntToBool(_e.m_requests[_floor][_btn]))
+			elevio.SetButtonLamp(_btn, _floor, _e.m_requests[_floor][_btn])
 		}
 	}
 }
@@ -197,13 +212,13 @@ func (_e *Elevator) printElevatorState() {
 	fmt.Println("  +--------------------+")
 	fmt.Println("  |  | up  | dn  | cab |")
 
-	for _floor := 4 - 1; _floor >= 0; _floor-- {
+	for _floor := NUM_FLOORS - 1; _floor >= 0; _floor-- {
 		fmt.Printf("  | %d", _floor)
 		for _btn := 0; _btn < 3; _btn++ {
-			if (_floor == 4-1 && _btn == int(B_HallUp)) || (_floor == 0 && _btn == B_HallDown) {
+			if (_floor == NUM_FLOORS-1 && _btn == int(B_HallUp)) || (_floor == 0 && _btn == B_HallDown) {
 				fmt.Print("|     ")
 			} else {
-				if _e.m_requests[_floor][_btn] == 1 {
+				if _e.m_requests[_floor][_btn] {
 					fmt.Print("|  #  ")
 				} else {
 					fmt.Print("|  -  ")
@@ -213,4 +228,52 @@ func (_e *Elevator) printElevatorState() {
 		fmt.Println("|")
 	}
 	fmt.Println("  +--------------------+")
+}
+
+func (_e *Elevator) setObstruction(value bool) {
+	_e.m_obstruction = value
+}
+
+func (_e *Elevator) clearAtCurrentFloor(e Elevator) Elevator {
+	switch _e.config.clearRequestVariant {
+	case CV_All:
+		// Clear all types of requests at the floor
+		for btn := 0; btn < 3; btn++ {
+			_e.m_requests[e.m_floor][btn] = false
+			//elevio.SetButtonLamp(elevio.ButtonType(btn), e.floor, false)
+		}
+
+	case CV_InDirn:
+		// Clear requests in the direction of movement
+		_e.m_requests[e.m_floor][elevio.BT_Cab] = false
+		//elevio.SetButtonLamp(elevio.BT_Cab, e.floor, false)
+
+		switch _e.m_dirn {
+		case elevio.MD_Up:
+			_e.m_requests[e.m_floor][elevio.BT_HallUp] = false
+			//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			// If no more requests above, clear down request at this floor
+			if !_e.RequestsAbove() && !_e.m_requests[_e.m_floor][elevio.BT_HallUp] {
+				_e.m_requests[_e.m_floor][elevio.BT_HallDown] = false
+				//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+			}
+
+		case elevio.MD_Down:
+			_e.m_requests[e.m_floor][elevio.BT_HallDown] = false
+			//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+			// If no more requests below, clear up request at this floor
+			if !_e.RequestsBelow() && !_e.m_requests[e.m_floor][elevio.BT_HallDown] {
+				_e.m_requests[e.m_floor][elevio.BT_HallUp] = false
+				//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			}
+
+		default:
+			// If stopped, clear both up and down hall requests
+			_e.m_requests[e.m_floor][elevio.BT_HallUp] = false
+			_e.m_requests[e.m_floor][elevio.BT_HallDown] = false
+			//elevio.SetButtonLamp(elevio.BT_HallUp, e.floor, false)
+			//elevio.SetButtonLamp(elevio.BT_HallDown, e.floor, false)
+		}
+	}
+	return e
 }
