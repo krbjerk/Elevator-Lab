@@ -1,0 +1,33 @@
+package main
+
+import (
+	"fmt"
+	"github.com/xtaci/kcp-go/v5"
+)
+
+func main() {
+	// Connect to the KCP server
+	conn, err := kcp.DialWithOptions("127.0.0.1:9999", nil, 10, 3)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	// Send a message
+	message := "Hello, KCP server!"
+	_, err = conn.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Write error:", err)
+		return
+	}
+	fmt.Println("Sent:", message)
+
+	// Receive a response
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Read error:", err)
+		return
+	}
+	fmt.Println("Received:", string(buf[:n]))
+}
